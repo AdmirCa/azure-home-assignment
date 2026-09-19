@@ -238,6 +238,48 @@ Alert notifications are delivered through Azure Monitor Action Groups to the con
 
 
 
+\## Infrastructure as Code Notes
+
+
+
+The environment was initially deployed and validated through the Azure Portal to verify functionality and service availability within the Azure Free Account limitations.
+
+
+
+Terraform configuration was created to represent the infrastructure as code and allow repeatable deployments.
+
+
+
+The following resources are currently represented in Terraform:
+
+
+
+\- Resource Group
+
+\- Virtual Network
+
+\- Management Subnet
+
+\- Application Subnet
+
+\- Network Security Group
+
+\- SSH Security Rule
+
+\- Public IP Address
+
+\- Network Interface
+
+\- Storage Account
+
+\- Log Analytics Workspace
+
+
+
+The virtual machine uses an SSH key pair generated during deployment. The private key is stored securely outside of the repository and is not committed to source control.
+
+
+
 \## CI/CD
 
 

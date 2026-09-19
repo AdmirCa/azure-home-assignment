@@ -86,6 +86,8 @@ The environment consists of:
 
 | Storage Account | stazurehomeassign01 | Secure storage services |
 
+| Log Analytics Workspace | law-azure-home-assignment |
+
 
 
 
@@ -193,6 +195,42 @@ Key design decisions:
 
 
 \## Monitoring and Alerting
+
+
+
+Monitoring components:
+
+
+
+\- Azure Monitor
+
+\- Log Analytics Workspace (law-azure-home-assignment)
+
+\- VM Insights enabled for vm-app-01
+
+
+
+Configured Alerts
+
+
+
+1\. HighCPUAlert
+
+&#x20;  - Trigger: CPU utilization greater than 80%
+
+&#x20;  - Severity: Warning
+
+
+
+2\. VM Availability Alert
+
+&#x20;  - Trigger: VM availability metric below 1
+
+&#x20;  - Severity: Informational
+
+
+
+Alert notifications are delivered through Azure Monitor Action Groups to the configured email address.
 
 
 

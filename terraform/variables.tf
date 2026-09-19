@@ -33,3 +33,14 @@ variable "storage_account_name" {
   type        = string
   default     = "stazurehomeassign01"
 }
+
+variable "ssh_public_key_path" {
+  description = "Path to SSH public key"
+  type        = string
+  default     = "C:/Keys/vm-app-01_key.pub"
+}
+
+variable "alert_email" {
+  description = "Email address for Azure Monitor alert notifications"
+  type        = string
+}

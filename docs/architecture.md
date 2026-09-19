@@ -68,11 +68,35 @@ The environment consists of:
 
 
 
+| Resource Type | Resource Name | Purpose |
+
+|--------------|--------------|----------|
+
+| Resource Group | rg-azure-home-assignment | Logical resource container |
+
+| Virtual Network | vnet-azure-home-assignment | Network isolation |
+
+| Management Subnet | snet-management | Future management resources |
+
+| Application Subnet | snet-application | Application workload |
+
+| Network Security Group | nsg-application | Traffic filtering |
+
+| Virtual Machine | vm-app-01 | Ubuntu application server |
+
+| Storage Account | stazurehomeassign01 | Secure storage services |
+
+
+
+
+
 \## Networking
 
 
 
 Virtual Network:
+
+\- Name: vnet-azure-home-assignment
 
 \- Address Space: 10.0.0.0/16
 
@@ -80,9 +104,31 @@ Virtual Network:
 
 Subnets:
 
-\- Management Subnet: 10.0.1.0/24
+\- snet-management (10.0.1.0/24)
 
-\- Application Subnet: 10.0.2.0/24
+\- snet-application (10.0.2.0/24)
+
+
+
+Network Security Group:
+
+\- nsg-application
+
+\- Associated with snet-application
+
+
+
+Security Rules:
+
+\- SSH (TCP/22) allowed only from a trusted public IP address
+
+\- Default Azure NSG deny rules applied for all other inbound traffic
+
+
+
+The VM is deployed in the Application subnet. The Management subnet is reserved for future management resources.
+
+
 
 
 
@@ -101,6 +147,14 @@ Subnets:
 \- Storage Account will use HTTPS-only access.
 
 \- Public access to storage will be disabled.
+
+\- SSH access is restricted to a trusted public IP address using Network Security Group rules.
+
+\- SSH access is not exposed to the entire Internet.
+
+\- Public IP address is used only for assignment administration and demonstration purposes.
+
+\- In a production environment, Azure Bastion or private connectivity would be preferred.
 
 
 
@@ -151,4 +205,30 @@ Key design decisions:
 
 
 \## Rebuild Procedure
+
+
+
+\## Storage
+
+
+
+Storage Account:
+
+\- Name: stazurehomeassign01
+
+\- Performance: Standard
+
+\- Redundancy: LRS (Locally Redundant Storage)
+
+\- Access Tier: Hot
+
+\- Minimum TLS Version: 1.2
+
+\- Secure Transfer Required: Enabled
+
+\- Anonymous Public Access: Disabled
+
+
+
+LRS was selected as a cost-effective redundancy option suitable for a non-critical demonstration environment.
 

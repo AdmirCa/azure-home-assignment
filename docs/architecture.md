@@ -2,255 +2,403 @@
 
 
 
-\## Purpose and Scope
+\## Technical Architecture Document
 
 
 
-\## Architecture Overview
+\## 1. Purpose and Scope
 
 
 
-The environment consists of:
+This document describes a small Azure environment designed for an internal business application. The solution demonstrates practical cloud engineering across infrastructure design, deployment, security, monitoring, alerting, and Infrastructure as Code.
 
 
 
-\- Azure Resource Group
-
-\- Virtual Network
-
-\- Management Subnet
-
-\- Application Subnet
-
-\- Network Security Group
-
-\- Ubuntu Linux Virtual Machine
-
-\- Azure Storage Account
-
-\- Log Analytics Workspace
-
-\- Azure Monitor
-
-\- Alert Rules
+The environment is intentionally limited to one Ubuntu Linux virtual machine and the minimum supporting Azure services required by the assignment. The design is simple, secure, cost-conscious, and repeatable through Terraform.
 
 
 
-
-
-\## Resource Inventory
+The implemented solution includes:
 
 
 
-| Resource Type | Purpose |
+\- A dedicated Azure Resource Group
 
-|---------------|---------|
+\- One Azure Virtual Network with two subnets
 
-| Resource Group | Logical container for all resources |
+\- One Ubuntu Linux virtual machine in the Application subnet
 
-| Virtual Network | Network isolation |
+\- One Network Security Group associated with the Application subnet
 
-| Management Subnet | Dedicated subnet for management resources |
+\- Restricted SSH access from a trusted public IP address
 
-| Application Subnet | Hosts application workload |
+\- One Azure Storage Account
 
-| Network Security Group | Traffic filtering and access control |
+\- One Log Analytics Workspace
 
-| Ubuntu Virtual Machine | Application server |
+\- Azure Monitor platform metrics
 
-| Storage Account | Storage services and Terraform state |
+\- Two Azure Monitor metric alerts
 
-| Log Analytics Workspace | Centralized logging |
+\- One Action Group for email notifications
 
-| Azure Monitor | Monitoring and alerting |
+\- Terraform configuration for deployment and cleanup
 
-| Alert Rules | Infrastructure notifications |
+
+
+Application installation, high availability, load balancing, autoscaling, Azure Firewall, VPN connectivity, Azure Bastion, and guest operating system log ingestion are outside the implemented scope.
+
+
+
+\---
+
+
+
+\## 2. Architecture Overview
+
+
+
+All workload resources are deployed in Sweden Central. The Resource Group metadata location is West Europe; this does not affect the runtime location of the resources contained in the Resource Group.
+
+
+
+The environment uses the Virtual Network `vnet-azure-home-assignment` with address space `10.0.0.0/16`.
+
+
+
+The Virtual Network contains:
+
+
+
+\- `snet-management`, using `10.0.1.0/24`
+
+\- `snet-application`, using `10.0.2.0/24`
+
+
+
+The virtual machine `vm-app-01` is deployed in `snet-application`. The `snet-management` subnet is reserved for future management services.
+
+
+
+The Network Security Group `nsg-application` is associated with `snet-application`. SSH access to the virtual machine is permitted only from a trusted public IP address.
+
+
+
+The Storage Account allows network access from both subnets through `Microsoft.Storage` service endpoints and Storage Account network rules.
+
+
+
+Azure Monitor platform metrics are used for CPU and virtual machine availability monitoring. The Log Analytics Workspace is provisioned as the centralized monitoring workspace. Guest operating system log ingestion is not configured in the current Terraform deployment.
+
+
+
+The architecture diagram is stored separately as:
+
+
+
+```text
+
+docs/architecture-diagram.png
+
+```
+
+
+
+\---
+
+
+
+\## 3. Resource Inventory
 
 
 
 | Resource Type | Resource Name | Purpose |
 
-|--------------|--------------|----------|
+|---|---|---|
 
-| Resource Group | rg-azure-home-assignment | Logical resource container |
+| Resource Group | `rg-azure-home-assignment` | Logical container for assignment resources |
 
-| Virtual Network | vnet-azure-home-assignment | Network isolation |
+| Virtual Network | `vnet-azure-home-assignment` | Network boundary using `10.0.0.0/16` |
 
-| Management Subnet | snet-management | Future management resources |
+| Management Subnet | `snet-management` | Reserved management subnet using `10.0.1.0/24` |
 
-| Application Subnet | snet-application | Application workload |
+| Application Subnet | `snet-application` | Hosts the Ubuntu virtual machine using `10.0.2.0/24` |
 
-| Network Security Group | nsg-application | Traffic filtering |
+| Network Security Group | `nsg-application` | Protects the Application subnet |
 
-| Virtual Machine | vm-app-01 | Ubuntu application server |
+| Public IP Address | `vm-app-01-ip` | Controlled administrative access for the assignment |
 
-| Storage Account | stazurehomeassign01 | Secure storage services |
+| Network Interface | `vm-app-01480` | Connects the virtual machine to the Application subnet |
 
-| Log Analytics Workspace | law-azure-home-assignment |
+| Linux Virtual Machine | `vm-app-01` | Ubuntu application server |
 
+| Storage Account | `stazurehomeassign01` | Secure Azure Storage service |
 
+| Log Analytics Workspace | `law-azure-home-assignment` | Central monitoring workspace |
 
+| Action Group | `ag-home-assignment` | Sends alert notifications by email |
 
+| Metric Alert | `HighCPUAlert` | Detects sustained high CPU utilization |
 
-\## Networking
+| Metric Alert | `VM Availability - vm-app-01` | Detects virtual machine availability problems |
 
 
 
-Virtual Network:
+Azure Storage Account names must be globally unique. If `stazurehomeassign01` is unavailable during a rebuild, another valid lowercase alphanumeric value must be supplied through Terraform.
 
-\- Name: vnet-azure-home-assignment
 
-\- Address Space: 10.0.0.0/16
 
+\---
 
 
-Subnets:
 
-\- snet-management (10.0.1.0/24)
+\## 4. Networking
 
-\- snet-application (10.0.2.0/24)
 
 
+\### 4.1 Virtual Network and Subnets
 
-Network Security Group:
 
-\- nsg-application
 
-\- Associated with snet-application
+| Network Component | Address Space | Usage |
 
+|---|---|---|
 
+| Virtual Network | `10.0.0.0/16` | Address space for the assignment |
 
-Security Rules:
+| Management Subnet | `10.0.1.0/24` | Reserved for future management services |
 
-\- SSH (TCP/22) allowed only from a trusted public IP address
+| Application Subnet | `10.0.2.0/24` | Hosts `vm-app-01` |
 
-\- Default Azure NSG deny rules applied for all other inbound traffic
 
 
+Both subnets have the `Microsoft.Storage` service endpoint enabled. The Storage Account network rules explicitly allow both subnet IDs.
 
-The VM is deployed in the Application subnet. The Management subnet is reserved for future management resources.
 
 
+\### 4.2 Network Security Group
 
 
 
-\## Security
+The Network Security Group `nsg-application` is associated with `snet-application`.
 
 
 
-\- Network Security Group (NSG) will be used to control inbound and outbound traffic.
+The implemented custom rule is:
 
-\- The virtual machine will be deployed in the Application subnet.
 
-\- SSH access will not be open to the entire Internet.
 
-\- Administrative access will be restricted to trusted source IP addresses.
+| Direction | Rule | Source | Destination | Protocol and Port | Action |
 
-\- Storage Account will use HTTPS-only access.
+|---|---|---|---|---|---|
 
-\- Public access to storage will be disabled.
+| Inbound | `Allow-SSH-Home` | Trusted public IP `/32` | Application subnet | TCP/22 | Allow |
 
-\- SSH access is restricted to a trusted public IP address using Network Security Group rules.
 
-\- SSH access is not exposed to the entire Internet.
 
-\- Public IP address is used only for assignment administration and demonstration purposes.
+Azure default NSG rules remain enabled. These include default virtual network and Azure Load Balancer inbound rules, a final inbound deny rule, and the standard Azure outbound rules.
 
-\- In a production environment, Azure Bastion or private connectivity would be preferred.
 
 
+No custom outbound NSG rule was added in the final Terraform configuration. Outbound connectivity therefore follows the Azure default NSG rules.
 
-\### Design Decisions
 
 
+\### 4.3 Public IP Decision
 
-The solution was designed to be simple, secure and cost-conscious while meeting the assignment requirements.
 
 
+A Public IP address is used to simplify administration and deployment validation during the assignment. SSH is not exposed to the entire Internet; access is limited to a trusted `/32` public IP address through the NSG.
 
-Key design decisions:
 
 
+For a production environment, direct public SSH access should be replaced by Azure Bastion, VPN-based private connectivity, or a controlled management host.
 
-\- A dedicated Resource Group is used to isolate all assignment resources.
 
-\- Two subnets are implemented to provide basic network segmentation between management and application resources.
 
-\- Ubuntu Linux was selected as the required workload platform.
+\---
 
-\- A Public IP address is used only to simplify administrative access during the assignment.
 
-\- SSH access is restricted to trusted source IP addresses using Network Security Group rules.
 
-\- Azure Storage Account is configured with secure transfer enabled and public access disabled.
+\## 5. Compute
 
-\- Locally Redundant Storage (LRS) was selected as a cost-effective redundancy option suitable for a non-critical demonstration environment.
 
-\- Log Analytics Workspace and Azure Monitor provide centralized logging and monitoring.
 
-\- Infrastructure alerts are configured to detect high CPU utilization and VM availability issues.
+The application workload runs on one Ubuntu Linux virtual machine.
 
-\- Terraform is used to provide repeatable infrastructure deployment.
 
 
+| Setting | Configuration |
 
-\## Monitoring and Alerting
+|---|---|
 
+| Name | `vm-app-01` |
 
+| Operating System | Ubuntu Server 24.04 LTS |
 
-Monitoring components:
+| VM Size | `Standard\_B2ats\_v2` |
 
+| Administrator Username | `azureuser` |
 
+| Authentication | SSH public key |
 
-\- Azure Monitor
+| Password Authentication | Disabled |
 
-\- Log Analytics Workspace (law-azure-home-assignment)
+| OS Disk | Standard LRS |
 
-\- VM Insights enabled for vm-app-01
+| Subnet | `snet-application` |
 
+| Boot Diagnostics | Azure-managed storage |
 
 
-Configured Alerts
 
+Terraform places the SSH public key on the virtual machine. The corresponding private `.pem` key is stored outside the repository and is never committed to Git.
 
 
-1\. HighCPUAlert
 
-&#x20;  - Trigger: CPU utilization greater than 80%
+\---
 
-&#x20;  - Severity: Warning
 
 
+\## 6. Security
 
-2\. VM Availability Alert
 
-&#x20;  - Trigger: VM availability metric below 1
 
-&#x20;  - Severity: Informational
+The following controls are implemented:
 
 
 
-Alert notifications are delivered through Azure Monitor Action Groups to the configured email address.
+\- Password authentication is disabled on the Linux virtual machine.
 
+\- SSH public key authentication is required.
 
+\- SSH access is restricted to one trusted source IP address.
 
-\## Deployment Approach
+\- The Application subnet is protected by `nsg-application`.
 
+\- The Storage Account requires HTTPS and TLS 1.2.
 
+\- Anonymous Blob access is disabled.
 
-\## Infrastructure as Code Notes
+\- Storage network access uses a default-deny configuration.
 
+\- Storage access is allowed from `snet-management` and `snet-application`.
 
+\- Microsoft-managed encryption keys provide encryption at rest.
 
-The environment was initially deployed and validated through the Azure Portal to verify functionality and service availability within the Azure Free Account limitations.
+\- `terraform.tfvars`, Terraform state files, and private SSH keys are excluded from Git.
 
+\- Environment-specific values are supplied locally rather than committed to the public repository.
 
 
-Terraform configuration was created to represent the infrastructure as code and allow repeatable deployments.
 
+\---
 
 
-The following resources are currently represented in Terraform:
+
+\## 7. Storage
+
+
+
+| Setting | Configuration | Rationale |
+
+|---|---|---|
+
+| Performance Tier | Standard | Suitable for a small non-performance-critical workload |
+
+| Redundancy | Locally Redundant Storage | Cost-conscious redundancy for a demonstration environment |
+
+| Access Tier | Hot | Appropriate for frequently accessible assignment data |
+
+| Secure Transfer | Required | Rejects non-HTTPS requests |
+
+| Minimum TLS | TLS 1.2 | Enforces a modern transport security baseline |
+
+| Anonymous Access | Disabled | Prevents anonymous public Blob access |
+
+| Public Network Access | Enabled with restrictions | Required for the public Storage endpoint while firewall rules restrict sources |
+
+| Default Network Action | Deny | Blocks sources not explicitly allowed |
+
+| Allowed Networks | Both configured subnets | Permits access from the Management and Application subnets |
+
+| Encryption Keys | Microsoft-managed | Reduces complexity while retaining encryption at rest |
+
+
+
+LRS was selected because the assignment is a small, non-critical environment and prioritizes cost and simplicity. A production implementation should reassess recovery and availability requirements and consider zone-redundant or geo-redundant Storage where required.
+
+
+
+\---
+
+
+
+\## 8. Monitoring and Alerting
+
+
+
+Azure Monitor provides platform metrics and alert evaluation. The Log Analytics Workspace `law-azure-home-assignment` is provisioned as the centralized monitoring workspace.
+
+
+
+The current Terraform deployment does not install Azure Monitor Agent or configure a Data Collection Rule. Therefore, the architecture does not claim Linux guest operating system log ingestion. The implemented alerts use Azure platform metrics.
+
+
+
+\### 8.1 Action Group
+
+
+
+| Setting | Configuration |
+
+|---|---|
+
+| Name | `ag-home-assignment` |
+
+| Short Name | `VMAlerts` |
+
+| Notification Method | Email |
+
+| Common Alert Schema | Enabled |
+
+
+
+The email address is provided through the ignored local `terraform.tfvars` file.
+
+
+
+\### 8.2 Alert Rules
+
+
+
+| Alert | Condition | Evaluation | Severity | Notification |
+
+|---|---|---|---|---|
+
+| `HighCPUAlert` | Average `Percentage CPU` greater than 80 | Every 1 minute over a 5-minute window | 2 | Email through `ag-home-assignment` |
+
+| `VM Availability - vm-app-01` | Average `VmAvailabilityMetric` less than 1 | Every 1 minute over a 5-minute window | 3 | Email through `ag-home-assignment` |
+
+
+
+The High CPU alert highlights sustained resource utilization, while the VM Availability alert identifies availability problems. Thresholds should be reviewed and tuned before production use.
+
+
+
+\---
+
+
+
+\## 9. Infrastructure as Code
+
+
+
+Terraform is the authoritative deployment method for the final environment.
+
+
+
+The Terraform configuration includes:
 
 
 
@@ -258,57 +406,307 @@ The following resources are currently represented in Terraform:
 
 \- Virtual Network
 
-\- Management Subnet
+\- Two subnets
 
-\- Application Subnet
+\- Storage service endpoints
 
 \- Network Security Group
 
-\- SSH Security Rule
+\- Restricted SSH rule
 
-\- Public IP Address
+\- NSG and subnet association
 
-\- Network Interface
+\- Public IP address
 
-\- Storage Account
+\- Network interface
+
+\- Ubuntu Linux virtual machine
+
+\- Storage Account and network rules
 
 \- Log Analytics Workspace
 
+\- Action Group
 
+\- High CPU alert
 
-The virtual machine uses an SSH key pair generated during deployment. The private key is stored securely outside of the repository and is not committed to source control.
+\- VM Availability alert
 
-
-
-\## CI/CD
-
-
-
-\## Rebuild Procedure
+\- Terraform outputs
 
 
 
-\## Storage
+The Terraform configuration was successfully:
 
 
 
-Storage Account:
+\- formatted with `terraform fmt`
 
-\- Name: stazurehomeassign01
+\- validated with `terraform validate`
 
-\- Performance: Standard
+\- reviewed with `terraform plan`
 
-\- Redundancy: LRS (Locally Redundant Storage)
-
-\- Access Tier: Hot
-
-\- Minimum TLS Version: 1.2
-
-\- Secure Transfer Required: Enabled
-
-\- Anonymous Public Access: Disabled
+\- deployed with `terraform apply`
 
 
 
-LRS was selected as a cost-effective redundancy option suitable for a non-critical demonstration environment.
+The successful deployment returned `Apply complete` and Terraform outputs for the Resource Group, Virtual Network, Storage Account, Log Analytics Workspace, virtual machine, and public IP address.
+
+
+
+\### 9.1 Repository Structure
+
+
+
+```text
+
+azure-home-assignment/
+
+├── README.md
+
+├── .gitignore
+
+├── docs/
+
+│   ├── architecture.md
+
+│   ├── Azure\_Home\_Assignment\_Technical\_Architecture\_Final.docx
+
+│   ├── architecture-diagram.png
+
+│   └── evidence/
+
+└── terraform/
+
+&#x20;   ├── versions.tf
+
+&#x20;   ├── provider.tf
+
+&#x20;   ├── variables.tf
+
+&#x20;   ├── main.tf
+
+&#x20;   └── outputs.tf
+
+```
+
+
+
+\### 9.2 Local Configuration and State
+
+
+
+The local `terraform.tfvars` file supplies:
+
+
+
+\- Trusted SSH source IP address
+
+\- Globally unique Storage Account name
+
+\- SSH public-key path
+
+\- Alert notification email address
+
+
+
+The file is excluded from Git.
+
+
+
+The Terraform state is stored locally for this assignment and is also excluded from Git. A production team deployment should use a protected remote backend with state locking.
+
+
+
+\---
+
+
+
+\## 10. Deployment, Validation, and Cleanup
+
+
+
+\### 10.1 Deployment
+
+
+
+```bash
+
+az login
+
+terraform init
+
+terraform fmt
+
+terraform validate
+
+terraform plan
+
+terraform apply
+
+```
+
+
+
+Before applying, the operator must verify the selected Azure subscription, local variable values, unique Storage Account name, trusted source IP address, and SSH public-key path.
+
+
+
+\### 10.2 Validation
+
+
+
+The deployment is validated by confirming:
+
+
+
+\- The Resource Group and expected resources exist.
+
+\- Both subnets use the expected address prefixes.
+
+\- The NSG is associated with the Application subnet.
+
+\- SSH access is restricted to the trusted source IP.
+
+\- The Ubuntu virtual machine is running.
+
+\- SSH login works with the corresponding private key.
+
+\- The Storage Account uses LRS, HTTPS, TLS 1.2, and disabled anonymous access.
+
+\- Storage network rules allow both configured subnets.
+
+\- The Log Analytics Workspace exists.
+
+\- Both Azure Monitor alert rules are enabled.
+
+\- The Action Group contains the email receiver.
+
+
+
+Example SSH command:
+
+
+
+```powershell
+
+ssh -i C:\\Keys\\vm-app-01\_key.pem azureuser@<public-ip-address>
+
+```
+
+
+
+Terraform outputs can be reviewed with:
+
+
+
+```bash
+
+terraform output
+
+```
+
+
+
+\### 10.3 Cleanup and Rebuild
+
+
+
+The environment can be removed with:
+
+
+
+```bash
+
+terraform destroy
+
+```
+
+
+
+The same Terraform configuration can rebuild the environment with:
+
+
+
+```bash
+
+terraform plan
+
+terraform apply
+
+```
+
+
+
+The Storage Account name must remain globally unique, and the trusted source IP may need to be updated when deployment is performed from another network.
+
+
+
+\---
+
+
+
+\## 11. Deployment Evidence
+
+
+
+The `docs/evidence` folder should contain a small, focused evidence set:
+
+
+
+\- Successful `terraform validate`
+
+\- Successful `terraform apply` showing `Apply complete`
+
+\- Terraform outputs
+
+\- Azure Resource Group overview after deployment
+
+\- Virtual Network and subnet configuration
+
+\- NSG rule showing restricted SSH
+
+\- Storage security and network configuration
+
+\- Virtual machine overview
+
+\- Successful SSH session
+
+\- Log Analytics Workspace
+
+\- Both Azure Monitor alert rules
+
+
+
+Evidence must not expose subscription IDs, tenant IDs, email addresses, trusted public IP addresses, SSH keys, Storage access keys, connection strings, or Terraform state content.
+
+
+
+\---
+
+
+
+\## 12. Production Improvements
+
+
+
+For a production implementation, consider:
+
+
+
+\- Removing the direct VM Public IP
+
+\- Using Azure Bastion or private VPN connectivity
+
+\- Using a remote Terraform backend with state locking
+
+\- Adding resource tags and governance policies
+
+\- Adding backup and recovery controls
+
+\- Reviewing availability and Storage redundancy requirements
+
+\- Adding Azure Monitor Agent and Data Collection Rules if guest OS or application logs are required
+
+\- Separating development, test, and production environments
 

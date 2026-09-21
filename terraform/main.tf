@@ -114,7 +114,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "vm-app-01"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
-  size                = "Standard_B2ats_v2"
+  size                = "Standard_B2ts_v2"
   admin_username      = "azureuser"
 
   network_interface_ids = [
@@ -125,7 +125,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file(var.ssh_public_key_path)
+    public_key = trimspace(file(var.ssh_public_key_path))
   }
 
   os_disk {
